@@ -1,4 +1,4 @@
-package llm
+package LLMClient
 
 import (
 	"bufio"
@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"nanoagent/config"
+	Config "nanoagent/src/config"
 )
 
 type ChatMessage struct {
@@ -39,23 +39,36 @@ type StreamChunk struct {
 }
 
 type Client struct {
-	cfg *config.Config
+	apiKey      string
+	baseURL     string
+	model       string
+	maxTokens   int
+	temperature float32
+	stream      bool
 }
 
-func NewClient(cfg *config.Config) *Client {
-	return &Client{cfg: cfg}
+func NewClient() *Client {
+	cfg := Config.GetConfig()
+	return &Client{
+		apiKey:      cfg.LLM.APIKey,
+		baseURL:     cfg.LLM.BaseURL,
+		model:       cfg.LLM.Model,
+		maxTokens:   cfg.LLM.MaxTokens,
+		temperature: cfg.LLM.Temperature,
+		stream:      cfg.LLM.Stream,
+	}
 }
 
 func (c *Client) InvokeMessage(messages []ChatMessage, callback func(content string)) error {
-	url := c.cfg.LLM.BaseURL 
+	url := c.baseURL
 
 	reqBody := RequestBody{
-		Model:       c.cfg.LLM.Model,
+		Model:       c.model,
 		Messages:    messages,
 		Thinking:    Thinking{Type: "enabled"},
-		Stream:      c.cfg.LLM.Stream,
-		MaxTokens:   c.cfg.LLM.MaxTokens,
-		Temperature: c.cfg.LLM.Temperature,
+		Stream:      c.stream,
+		MaxTokens:   c.maxTokens,
+		Temperature: c.temperature,
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
@@ -68,7 +81,7 @@ func (c *Client) InvokeMessage(messages []ChatMessage, callback func(content str
 		return fmt.Errorf("new request error: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", c.cfg.LLM.APIKey)
+	req.Header.Set("Authorization", c.apiKey)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -82,7 +95,7 @@ func (c *Client) InvokeMessage(messages []ChatMessage, callback func(content str
 		return fmt.Errorf("status %s: %s", resp.Status, string(respBody))
 	}
 
-	if !c.cfg.LLM.Stream {
+	if !c.stream {
 		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return fmt.Errorf("read response error: %w", err)
