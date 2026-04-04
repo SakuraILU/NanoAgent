@@ -1,9 +1,11 @@
 package agnet
 
 import (
+	"fmt"
 	Config "nanoagent/src/config"
 	LLMClient "nanoagent/src/llmClient"
 	ToolBox "nanoagent/src/toolBox"
+	"regexp"
 	"strings"
 )
 
@@ -12,6 +14,7 @@ type Reactor struct {
 	searchTool     *ToolBox.SearchWeb
 	promptTemplate string
 	maxEpoch       int
+	history        []LLMClient.ChatMessage
 }
 
 func NewReactor() *Reactor {
@@ -36,30 +39,114 @@ func NewReactor() *Reactor {
 	return &agent
 }
 
-func (r *Reactor) Run(query string) (result string, err error) {
+func (r *Reactor) Run(query string) ([]LLMClient.ChatMessage, error) {
 	// Fill the template with the query
 	prompt := strings.Replace(r.promptTemplate, "{query}", query, -1)
 
-	// Create message
+	// Create initial message list
 	messages := []LLMClient.ChatMessage{
 		{Role: "user", Content: prompt},
 	}
 
-	history := make([]string, 0)
-	history = append(history, "Question: "+query)
+	for epoch := 0; epoch < r.maxEpoch; epoch++ {
+		// Call LLM and get response
+		response, err := r.llmClient.InvokeMessage(messages)
+		if err != nil {
+			return messages, fmt.Errorf("epoch %d: invoke message error: %w", epoch, err)
+		}
 
-	var response strings.Builder
-	err = r.llmClient.InvokeMessage(messages, func(content string) {
-		response.WriteString(content)
-	})
+		// Add assistant response to messages
+		messages = append(messages, LLMClient.ChatMessage{
+			Role:    "assistant",
+			Content: response,
+		})
 
-	if err != nil {
-		return "", err
+		// Parse the response to extract thought, action, and final answer
+		_, action, finalAnswer, err := r.parseResponse(response)
+		if err != nil {
+			return messages, fmt.Errorf("epoch %d: parse response error: %w", epoch, err)
+		}
+
+		// If we have a final answer, return success
+		if finalAnswer != "" {
+			return messages, nil
+		}
+
+		// If we have an action, execute it
+		if action != "" {
+			toolName, param, err := r.parseAction(action)
+			if err != nil {
+				return messages, fmt.Errorf("epoch %d: parse action error: %w", epoch, err)
+			}
+
+			// Execute the tool
+			if toolName == "search" {
+				searchResult, err := r.searchTool.Search(param)
+				if err != nil {
+					return messages, fmt.Errorf("epoch %d: search error: %w", epoch, err)
+				}
+
+				// Add observation to messages for next iteration
+				messages = append(messages, LLMClient.ChatMessage{
+					Role:    "user",
+					Content: fmt.Sprintf("Search results for '%s':\n%s", param, searchResult),
+				})
+			} else {
+				return messages, fmt.Errorf("epoch %d: unknown tool: %s", epoch, toolName)
+			}
+		} else {
+			return messages, fmt.Errorf("epoch %d: no action or final answer in response", epoch)
+		}
 	}
 
-	result = response.String()
-	history = append(history, "Answer: "+result)
+	return messages, fmt.Errorf("reached max epochs (%d) without final answer", r.maxEpoch)
+}
 
-	// For now, just return the result. History can be used later for more complex logic
-	return result, nil
+func (r *Reactor) parseResponse(response string) (thought string, action string, finalAnswer string, err error) {
+	// Define regex patterns for each component
+	thoughtPattern := regexp.MustCompile(`(?i)Thought:\s*(.*?)(?:\n|Action:|Final Answer:|$)`)
+	actionPattern := regexp.MustCompile(`(?i)Action:\s*(.*?)(?:\n|Observation:|Final Answer:|$)`)
+	finalAnswerPattern := regexp.MustCompile(`(?i)Final Answer:\s*(.*?)(?:\n|$)`)
+
+	// Extract thought
+	if thoughtMatch := thoughtPattern.FindStringSubmatch(response); len(thoughtMatch) > 1 {
+		thought = strings.TrimSpace(thoughtMatch[1])
+	}
+
+	// Extract action
+	if actionMatch := actionPattern.FindStringSubmatch(response); len(actionMatch) > 1 {
+		action = strings.TrimSpace(actionMatch[1])
+	}
+
+	// Extract final answer
+	if finalAnswerMatch := finalAnswerPattern.FindStringSubmatch(response); len(finalAnswerMatch) > 1 {
+		finalAnswer = strings.TrimSpace(finalAnswerMatch[1])
+	}
+
+	return thought, action, finalAnswer, nil
+}
+
+func (r *Reactor) parseAction(action string) (name string, param string, err error) {
+	// Trim whitespace
+	action = strings.TrimSpace(action)
+
+	// Pattern: functionName(parameter)
+	// Example: search("query") or search("what is AI")
+	actionPattern := regexp.MustCompile(`^(\w+)\s*\((.*)\)$`)
+
+	matches := actionPattern.FindStringSubmatch(action)
+	if len(matches) < 3 {
+		return "", "", fmt.Errorf("invalid action format: %s", action)
+	}
+
+	name = strings.TrimSpace(matches[1])
+	param = strings.TrimSpace(matches[2])
+
+	// Remove surrounding quotes if present
+	if (strings.HasPrefix(param, `"`) && strings.HasSuffix(param, `"`)) ||
+		(strings.HasPrefix(param, "'") && strings.HasSuffix(param, "'")) {
+		param = param[1 : len(param)-1]
+	}
+
+	return name, param, nil
 }

@@ -22,24 +22,38 @@ func main() {
 
 	// Test queries
 	testQueries := []string{
-		"What is the capital of France?",
-		"What is the newest version of iphone",
+		// "What is the capital of France?",
+		// "What is the newest version of iphone",
+		"原神卡池新角色值得抽吗？",
 	}
 
 	for i, query := range testQueries {
-		fmt.Printf("\n--- Test Query %d ---\n", i+1)
+		fmt.Printf("\n========== Test Query %d ==========\n", i+1)
 		fmt.Printf("Query: %s\n", query)
 
 		// Run the reactor
-		result, err := reactor.Run(query)
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-			continue
+		messages, err := reactor.Run(query)
+
+		// Format and print the messages
+		fmt.Println("\n--- Execution History ---")
+		for idx, msg := range messages {
+			contentLen := len(msg.Content)
+			if contentLen > 200 {
+				fmt.Printf("\n[%d] %s (length: %d):\n%s...\n", idx, msg.Role, contentLen, msg.Content[:200])
+			} else {
+				fmt.Printf("\n[%d] %s:\n%s\n", idx, msg.Role, msg.Content)
+			}
 		}
 
-		fmt.Printf("Result: %s\n", result)
-		fmt.Println("--- End Test ---\n")
+		// Print final error or success status
+		if err != nil {
+			fmt.Printf("\n[Status] Error: %v\n", err)
+		} else {
+			fmt.Println("\n[Status] Success")
+		}
+
+		fmt.Println("\n========== End Test ==========")
 	}
 
-	fmt.Println("=== All tests completed ===")
+	fmt.Println("\n=== All tests completed ===")
 }
