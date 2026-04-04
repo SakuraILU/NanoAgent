@@ -8,9 +8,9 @@ import (
 )
 
 type Config struct {
-	Agent  AgentConfig  `yaml:"agent"`
-	LLM    LLMConfig    `yaml:"llm"`
-	Serper SerperConfig `yaml:"serper"`
+	Reactor AgentConfig  `yaml:"reactor"`
+	LLM     LLMConfig    `yaml:"llm"`
+	Serper  SerperConfig `yaml:"serper"`
 }
 
 type AgentConfig struct {
@@ -60,8 +60,8 @@ func LoadConfig(path string) (*Config, error) {
 		}
 
 		// Set defaults if not provided
-		if cfg.Agent.MaxEpoch == 0 {
-			cfg.Agent.MaxEpoch = 50
+		if cfg.Reactor.MaxEpoch == 0 {
+			cfg.Reactor.MaxEpoch = 50
 		}
 		if cfg.LLM.MaxTokens == 0 {
 			cfg.LLM.MaxTokens = 4096

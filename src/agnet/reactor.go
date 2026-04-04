@@ -21,7 +21,7 @@ func NewReactor() *Reactor {
 	searchTool := ToolBox.NewSearchWeb()
 
 	// Validate configuration
-	maxEpoch := cfg.Agent.MaxEpoch
+	maxEpoch := cfg.Reactor.MaxEpoch
 	if maxEpoch <= 0 {
 		maxEpoch = 50 // fallback default
 	}
@@ -29,7 +29,7 @@ func NewReactor() *Reactor {
 	agent := Reactor{
 		llmClient:      llmClient,
 		searchTool:     searchTool,
-		promptTemplate: cfg.Agent.PromptTemplate,
+		promptTemplate: cfg.Reactor.PromptTemplate,
 		maxEpoch:       maxEpoch,
 	}
 

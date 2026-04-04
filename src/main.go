@@ -2,59 +2,44 @@ package main
 
 import (
 	"fmt"
+	Agnet "nanoagent/src/agnet"
 	Config "nanoagent/src/config"
-	LLMClient "nanoagent/src/llmClient"
-	ToolBox "nanoagent/src/toolBox"
 )
 
 func main() {
+	// Load configuration
 	_, err := Config.LoadConfig("src/resource/config.yaml")
 	if err != nil {
 		fmt.Println("load config error:", err)
 		return
 	}
 
-	// Test LLM Client
-	testLLMClient()
+	fmt.Println("=== NanoAgent Reactor Test ===")
 
-	// Test SearchWeb Tool
-	testSearchWeb()
-}
+	// Create reactor instance
+	reactor := Agnet.NewReactor()
+	fmt.Println("Reactor created successfully")
 
-func testLLMClient() {
-	fmt.Println("\n=== Testing LLM Client ===")
-	client := LLMClient.NewClient()
-
-	messages := []LLMClient.ChatMessage{
-		{Role: "user", Content: "作为一名营销专家，请为我的产品创作一个吸引人的口号"},
-		{Role: "assistant", Content: "当然，要创作一个吸引人的口号，请告诉我一些关于您产品的信息"},
-		{Role: "user", Content: "智谱AI 开放平台"},
+	// Test queries
+	testQueries := []string{
+		"What is the capital of France?",
+		"What is the newest version of iphone",
 	}
 
-	fmt.Println("=== response begin ===")
-	err := client.InvokeMessage(messages, func(content string) {
-		fmt.Print(content)
-	})
-	if err != nil {
-		fmt.Println("invoke error:", err)
-		return
-	}
-	fmt.Println("\n=== response end ===")
-}
+	for i, query := range testQueries {
+		fmt.Printf("\n--- Test Query %d ---\n", i+1)
+		fmt.Printf("Query: %s\n", query)
 
-func testSearchWeb() {
-	fmt.Println("\n=== Testing SearchWeb Tool ===")
-	search := ToolBox.NewSearchWeb()
+		// Run the reactor
+		result, err := reactor.Run(query)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			continue
+		}
 
-	query := "英伟达最新的GPU型号"
-	fmt.Printf("Search Query: %s\n", query)
-	fmt.Println("---")
-
-	result, err := search.Search(query)
-	if err != nil {
-		fmt.Println("search error:", err)
-		return
+		fmt.Printf("Result: %s\n", result)
+		fmt.Println("--- End Test ---\n")
 	}
 
-	fmt.Println(result)
+	fmt.Println("=== All tests completed ===")
 }
