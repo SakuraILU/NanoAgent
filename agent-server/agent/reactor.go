@@ -1,4 +1,4 @@
-package agnet
+package agent
 
 import (
 	"encoding/json"
@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	Config "agent-server/config"
-	llm "agent-server/client"
-	ToolBox "agent-server/toolBox"
+	"agent-server/config"
+	client "agent-server/client"
+	"agent-server/tool_box"
 )
 
 // LLM JSON 响应结构
@@ -27,19 +27,19 @@ type ActionCall struct {
 }
 
 type Reactor struct {
-	llmClient     *llm.Client
-	searchWebTool *ToolBox.SearchWeb
+	llmClient     *client.Client
+	searchWebTool *tool_box.SearchWeb
 	systemPrompt  string
 	userPrompt    string
 	maxEpoch      int
-	history       []llm.ChatMessage
+	history       []client.ChatMessage
 }
 
 func NewReactor() *Reactor {
-	cfg := Config.GetConfig()
+	cfg := config.GetConfig()
 
-	llmClient := llm.NewClient()
-	searchTool := ToolBox.NewSearchWeb()
+	llmClient := client.NewClient()
+	searchTool := tool_box.NewSearchWeb()
 
 	// Validate configuration
 	maxEpoch := cfg.Reactor.MaxEpoch
@@ -58,14 +58,14 @@ func NewReactor() *Reactor {
 	return &agent
 }
 
-func (r *Reactor) Run(query string) ([]llm.ChatMessage, error) {
+func (r *Reactor) Run(query string) ([]client.ChatMessage, error) {
 	// Inject current date into prompts
 	currentDate := time.Now().Format("2006-01-02")
 	systemPrompt := strings.Replace(r.systemPrompt, "{current_date}", currentDate, -1)
 	userPrompt := strings.Replace(r.userPrompt, "{query}", query, -1)
 
 	// Create initial message list with system + user
-	messages := []llm.ChatMessage{
+	messages := []client.ChatMessage{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: userPrompt},
 	}
@@ -78,7 +78,7 @@ func (r *Reactor) Run(query string) ([]llm.ChatMessage, error) {
 		}
 
 		// Add assistant response to messages
-		messages = append(messages, llm.ChatMessage{
+		messages = append(messages, client.ChatMessage{
 			Role:    "assistant",
 			Content: response,
 		})
@@ -101,7 +101,7 @@ func (r *Reactor) Run(query string) ([]llm.ChatMessage, error) {
 				return messages, fmt.Errorf("epoch %d: execute action error: %w", epoch, err)
 			}
 
-			messages = append(messages, llm.ChatMessage{
+			messages = append(messages, client.ChatMessage{
 				Role:    "tool",
 				Content: toolResult,
 			})

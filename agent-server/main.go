@@ -2,13 +2,13 @@ package main
 
 import (
 	"fmt"
-	Agent "agent-server/agent"
-	Config "agent-server/config"
+	"agent-server/agent"
+	"agent-server/config"
 )
 
 func main() {
 	// Load configuration
-	_, err := Config.LoadConfig("resource/config.yaml")
+	_, err := config.LoadConfig("resource/config.yaml")
 	if err != nil {
 		fmt.Println("load config error:", err)
 		return
@@ -17,7 +17,7 @@ func main() {
 	fmt.Println("=== NanoAgent Reactor Test ===")
 
 	// Create reactor instance
-	reactor := Agent.NewReactor()
+	reactor := agent.NewReactor()
 	fmt.Println("Reactor created successfully")
 
 	// Test queries

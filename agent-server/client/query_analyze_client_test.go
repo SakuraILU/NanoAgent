@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	Config "agent-server/config"
+	"agent-server/config"
 )
 
 func TestQueryAnalyzeClient(t *testing.T) {
 	// 加载配置
-	_, err := Config.LoadConfig("../resource/config.yaml")
+	_, err := config.LoadConfig("../resource/config.yaml")
 	if err != nil {
 		t.Fatalf("Load config failed: %v", err)
 	}

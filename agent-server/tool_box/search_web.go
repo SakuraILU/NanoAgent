@@ -1,4 +1,4 @@
-package ToolBox
+package tool_box
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	Config "agent-server/config"
+	"agent-server/config"
 )
 
 type SearchWeb struct {
@@ -18,7 +18,7 @@ type SearchWeb struct {
 }
 
 func NewSearchWeb() *SearchWeb {
-	cfg := Config.GetConfig()
+	cfg := config.GetConfig()
 	return &SearchWeb{
 		apiKey:  cfg.Serper.APIKey,
 		baseURL: cfg.Serper.BaseURL,

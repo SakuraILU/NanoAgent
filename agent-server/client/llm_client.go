@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	Config "agent-server/config"
+	"agent-server/config"
 )
 
 type ChatMessage struct {
@@ -51,7 +51,7 @@ type Client struct {
 }
 
 func NewClient() *Client {
-	cfg := Config.GetConfig()
+	cfg := config.GetConfig()
 	return &Client{
 		apiKey:      cfg.LLM.APIKey,
 		baseURL:     cfg.LLM.BaseURL,

@@ -6,7 +6,7 @@ import (
 
 	thrift "github.com/apache/thrift/lib/go/thrift"
 	"agent-server/client/gen/query_server"
-	Config "agent-server/config"
+	"agent-server/config"
 )
 
 // QueryAnalyzeClient Query Server Thrift 客户端
@@ -17,7 +17,7 @@ type QueryAnalyzeClient struct {
 
 // NewQueryAnalyzeClient 创建客户端（从配置读取）
 func NewQueryAnalyzeClient() *QueryAnalyzeClient {
-	cfg := Config.GetConfig()
+	cfg := config.GetConfig()
 	return &QueryAnalyzeClient{
 		addr:    cfg.QueryAnalyze.Addr,
 		timeout: time.Duration(cfg.QueryAnalyze.Timeout) * time.Second,
