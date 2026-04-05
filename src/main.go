@@ -23,8 +23,10 @@ func main() {
 	// Test queries
 	testQueries := []string{
 		// "What is the capital of France?",
-		// "What is the newest version of iphone",
-		"原神卡池新角色值得抽吗？",
+		// "What is the next main version of iphone",
+		"原神下个版本卡池值得抽取么，我没抽兹白，但是有少女？",
+		// "接下来还有多久才放假啊",
+		// "长江电力未来三年的净利润预测",
 	}
 
 	for i, query := range testQueries {
@@ -39,7 +41,7 @@ func main() {
 		for idx, msg := range messages {
 			contentLen := len(msg.Content)
 			if contentLen > 200 {
-				fmt.Printf("\n[%d] %s (length: %d):\n%s...\n", idx, msg.Role, contentLen, msg.Content[:200])
+				fmt.Printf("\n[%d] %s (length: %d):\n%s...\n", idx, msg.Role, contentLen, msg.Content)
 			} else {
 				fmt.Printf("\n[%d] %s:\n%s\n", idx, msg.Role, msg.Content)
 			}

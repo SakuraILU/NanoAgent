@@ -2,19 +2,22 @@ package agnet
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
+	"time"
+
 	Config "nanoagent/src/config"
 	LLMClient "nanoagent/src/llmClient"
 	ToolBox "nanoagent/src/toolBox"
-	"regexp"
-	"strings"
 )
 
 type Reactor struct {
-	llmClient      *LLMClient.Client
-	searchTool     *ToolBox.SearchWeb
-	promptTemplate string
-	maxEpoch       int
-	history        []LLMClient.ChatMessage
+	llmClient     *LLMClient.Client
+	searchWebTool *ToolBox.SearchWeb
+	systemPrompt  string
+	userPrompt    string
+	maxEpoch      int
+	history       []LLMClient.ChatMessage
 }
 
 func NewReactor() *Reactor {
@@ -30,22 +33,26 @@ func NewReactor() *Reactor {
 	}
 
 	agent := Reactor{
-		llmClient:      llmClient,
-		searchTool:     searchTool,
-		promptTemplate: cfg.Reactor.PromptTemplate,
-		maxEpoch:       maxEpoch,
+		llmClient:     llmClient,
+		searchWebTool: searchTool,
+		systemPrompt:  cfg.Reactor.SystemPrompt,
+		userPrompt:    cfg.Reactor.UserPrompt,
+		maxEpoch:      maxEpoch,
 	}
 
 	return &agent
 }
 
 func (r *Reactor) Run(query string) ([]LLMClient.ChatMessage, error) {
-	// Fill the template with the query
-	prompt := strings.Replace(r.promptTemplate, "{query}", query, -1)
+	// Inject current date into prompts
+	currentDate := time.Now().Format("2006-01-02")
+	systemPrompt := strings.Replace(r.systemPrompt, "{current_date}", currentDate, -1)
+	userPrompt := strings.Replace(r.userPrompt, "{query}", query, -1)
 
-	// Create initial message list
+	// Create initial message list with system + user
 	messages := []LLMClient.ChatMessage{
-		{Role: "user", Content: prompt},
+		{Role: "system", Content: systemPrompt},
+		{Role: "user", Content: userPrompt},
 	}
 
 	for epoch := 0; epoch < r.maxEpoch; epoch++ {
@@ -80,20 +87,22 @@ func (r *Reactor) Run(query string) ([]LLMClient.ChatMessage, error) {
 			}
 
 			// Execute the tool
-			if toolName == "search" {
-				searchResult, err := r.searchTool.Search(param)
+			toolResult := ""
+			if toolName == "searchWeb" {
+				toolResult, err = r.searchWebTool.Exec(param)
 				if err != nil {
 					return messages, fmt.Errorf("epoch %d: search error: %w", epoch, err)
 				}
-
-				// Add observation to messages for next iteration
-				messages = append(messages, LLMClient.ChatMessage{
-					Role:    "user",
-					Content: fmt.Sprintf("Search results for '%s':\n%s", param, searchResult),
-				})
 			} else {
 				return messages, fmt.Errorf("epoch %d: unknown tool: %s", epoch, toolName)
 			}
+			// Add observation to messages for next iteration
+			observationContent := fmt.Sprintf("[Tool Result]\n%s", toolResult)
+			
+			messages = append(messages, LLMClient.ChatMessage{
+				Role:    "user",
+				Content: observationContent,
+			})
 		} else {
 			return messages, fmt.Errorf("epoch %d: no action or final answer in response", epoch)
 		}

@@ -45,6 +45,7 @@ type Client struct {
 	maxTokens   int
 	temperature float32
 	stream      bool
+	thinking    bool
 }
 
 func NewClient() *Client {
@@ -56,16 +57,22 @@ func NewClient() *Client {
 		maxTokens:   cfg.LLM.MaxTokens,
 		temperature: cfg.LLM.Temperature,
 		stream:      cfg.LLM.Stream,
+		thinking:    cfg.LLM.Thinking,
 	}
 }
 
 func (c *Client) InvokeMessage(messages []ChatMessage) (string, error) {
 	url := c.baseURL
 
+	thinkingType := "disabled"
+	if c.thinking {
+		thinkingType = "enabled"
+	}
+
 	reqBody := RequestBody{
 		Model:       c.model,
 		Messages:    messages,
-		Thinking:    Thinking{Type: "enabled"},
+		Thinking:    Thinking{Type: thinkingType},
 		Stream:      c.stream,
 		MaxTokens:   c.maxTokens,
 		Temperature: c.temperature,

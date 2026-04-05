@@ -14,8 +14,9 @@ type Config struct {
 }
 
 type AgentConfig struct {
-	PromptTemplate string `yaml:"prompt_template"`
-	MaxEpoch       int    `yaml:"max_epoch"`
+	SystemPrompt string `yaml:"system_prompt"`
+	UserPrompt   string `yaml:"user_prompt"`
+	MaxEpoch     int    `yaml:"max_epoch"`
 }
 
 type LLMConfig struct {
@@ -25,6 +26,7 @@ type LLMConfig struct {
 	MaxTokens   int     `yaml:"max_tokens"`
 	Temperature float32 `yaml:"temperature"`
 	Stream      bool    `yaml:"stream"`
+	Thinking    bool    `yaml:"thinking"`
 }
 
 type SerperConfig struct {

@@ -38,7 +38,7 @@ type SearchResponse struct {
 	} `json:"organic"`
 }
 
-func (s *SearchWeb) Search(query string) (string, error) {
+func (s *SearchWeb) Exec(query string) (string, error) {
 	url := s.baseURL
 	if url == "" {
 		url = "https://google.serper.dev/search"
@@ -74,19 +74,25 @@ func (s *SearchWeb) Search(query string) (string, error) {
 		return "", fmt.Errorf("read response error: %v", err)
 	}
 
-	var searchResp SearchResponse
-	if err := json.Unmarshal(body, &searchResp); err != nil {
+	searchResp := &SearchResponse{}
+	if err := json.Unmarshal(body, searchResp); err != nil {
 		return "", fmt.Errorf("unmarshal response error: %v", err)
 	}
 
-	// Format results
-	var results []string
-	for i, result := range searchResp.Organic {
+	return s.FormatResponse(searchResp), nil
+}
+
+// 格式化输出给 LLM
+func (s *SearchWeb) FormatResponse(resp *SearchResponse) string {
+	var sb strings.Builder
+
+	for i, r := range resp.Organic {
 		if i >= s.limit {
 			break
 		}
-		results = append(results, fmt.Sprintf("[%d] %s\n%s", i+1, result.Title, result.Snippet))
+		sb.WriteString(fmt.Sprintf("### [%d] %s\n", i, r.Title))
+		sb.WriteString(fmt.Sprintf("**摘要**: %s\n\n", r.Snippet))
 	}
 
-	return strings.Join(results, "\n\n"), nil
+	return sb.String()
 }
