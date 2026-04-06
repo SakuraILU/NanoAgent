@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"agent-server/config"
 	client "agent-server/client"
+	"agent-server/config"
 	"agent-server/memory"
 	"agent-server/tool_box"
 )
@@ -45,7 +45,7 @@ func NewReactor() *Reactor {
 	// Validate configuration
 	maxEpoch := cfg.Reactor.MaxEpoch
 	if maxEpoch <= 0 {
-		maxEpoch = 50 // fallback default
+		maxEpoch = 50
 	}
 
 	reactor := Reactor{
@@ -66,36 +66,34 @@ func (r *Reactor) Run(query string) ([]client.ChatMessage, error) {
 	systemPrompt := strings.Replace(r.systemPrompt, "{current_date}", currentDate, -1)
 	userPrompt := strings.Replace(r.userPrompt, "{query}", query, -1)
 
-	// 1. 基于原始 query 召回相关历史记忆 (只召回一次)
+	// 基于原始 query 召回相关历史记忆 (只召回一次)
 	recallTopK := config.GetConfig().Memory.RecallTopK
 	recalledItems, err := r.memory.Recall(query, recallTopK)
 	if err != nil {
 		return nil, fmt.Errorf("recall memory error: %w", err)
 	}
 
-	// 2. 构建记忆上下文，注入到 system prompt
+	messages := make([]client.ChatMessage, 0)
+
+	// 历史记忆作为独立的 user message，注意不要重复加入 memory
 	memoryContext := r.buildMemoryContext(recalledItems)
 	if memoryContext != "" {
-		systemPrompt = systemPrompt + "\n\n## 相关历史记忆:\n" + memoryContext
+		messages = append(messages, client.ChatMessage{
+			Role:    "user",
+			Content: "## 相关历史记忆:\n" + memoryContext,
+		})
 	}
+	systemMsg := client.ChatMessage{
+		Role:    "system",
+		Content: systemPrompt,
+	}
+	userMsg := client.ChatMessage{
+		Role:    "user",
+		Content: userPrompt,
+	}
+	messages = append(messages, systemMsg, userMsg)
+	r.memory.Add(userMsg, 1.0) // 系统提示词不计入记忆，每轮对话都会自动构建
 
-	// 3. Create initial message list with system + user
-	messages := []client.ChatMessage{
-		{Role: "system", Content: systemPrompt},
-		{Role: "user", Content: userPrompt},
-	}
-
-	// 4. 记录本轮对话的用户问题和系统提示到记忆 (importance = 1.0)
-	err = r.memory.Add(client.ChatMessage{Role: "system", Content: systemPrompt}, 1.0)
-	if err != nil {
-		fmt.Printf("Warning: failed to add system prompt to memory: %v\n", err)
-	}
-	err = r.memory.Add(client.ChatMessage{Role: "user", Content: query}, 1.0)
-	if err != nil {
-		fmt.Printf("Warning: failed to add user query to memory: %v\n", err)
-	}
-
-	// 5. 主循环：LLM → 工具调用 → ...
 	for epoch := 0; epoch < r.maxEpoch; epoch++ {
 		// Call LLM and get response
 		response, err := r.llmClient.InvokeMessage(messages)
@@ -265,7 +263,6 @@ func extractJSONBlock(response string) string {
 			return content
 		}
 	}
-
 	return ""
 }
 
