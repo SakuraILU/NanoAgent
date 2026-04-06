@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
+
 	"agent-server/agent"
 	"agent-server/config"
 )
@@ -14,50 +18,63 @@ func main() {
 		return
 	}
 
-	fmt.Println("=== NanoAgent Reactor Test ===")
+	fmt.Println("=== NanoAgent Interactive Mode ===")
+	fmt.Println("Type your question and press Enter to chat.")
+	fmt.Println("Type 'exit' or 'quit' to stop.")
+	fmt.Println("Type 'clear' to clear memory.")
+	fmt.Println("==================================")
 
-	// Create reactor instance
+	// Create reactor instance (memory persists across conversations)
 	reactor := agent.NewReactor()
-	fmt.Println("Reactor created successfully")
 
-	// Test queries
-	testQueries := []string{
-		// "What is the capital of France?",
-		// "What is the next main version of iphone",
-		// "原神下个版本卡池值得抽取么，我没抽兹白，但是有少女？",
-		// "接下来还有多久才放假啊",
-		// "长江电力未来三年的净利润预测",
-		// "我比较喜欢木偶，目前有少女，下个版本的新角色好像也是岩系的，但没抽6.3的兹白...下个版本应该抽这个新角色么，它在未来能适配木偶的队伍么？还是说抽了就只能等队友兹白复刻了",
-		"你好呀",
-	}
+	scanner := bufio.NewScanner(os.Stdin)
+	round := 0
 
-	for i, query := range testQueries {
-		fmt.Printf("\n========== Test Query %d ==========\n", i+1)
-		fmt.Printf("Query: %s\n", query)
+	for {
+		round++
+		fmt.Printf("\n[%d] You: ", round)
+
+		if !scanner.Scan() {
+			break
+		}
+
+		input := strings.TrimSpace(scanner.Text())
+		if input == "" {
+			round-- // don't count empty input
+			continue
+		}
+
+		// Check for exit commands
+		if input == "exit" || input == "quit" {
+			fmt.Println("\nGoodbye!")
+			break
+		}
+
+		// Check for clear memory command
+		if input == "clear" {
+			reactor = agent.NewReactor()
+			fmt.Println("Memory cleared. Starting fresh conversation.")
+			round = 0
+			continue
+		}
 
 		// Run the reactor
-		messages, err := reactor.Run(query)
+		fmt.Println("\n--- Thinking... ---")
+		messages, err := reactor.Run(input)
 
-		// Format and print the messages
-		fmt.Println("\n--- Execution History ---")
-		for idx, msg := range messages {
-			contentLen := len(msg.Content)
-			if contentLen > 200 {
-				fmt.Printf("\n[%d] %s (length: %d):\n%s...\n", idx, msg.Role, contentLen, msg.Content)
-			} else {
-				fmt.Printf("\n[%d] %s:\n%s\n", idx, msg.Role, msg.Content)
-			}
-		}
-
-		// Print final error or success status
+		// Print the final response
+		fmt.Println("\n--- Response ---")
 		if err != nil {
-			fmt.Printf("\n[Status] Error: %v\n", err)
-		} else {
-			fmt.Println("\n[Status] Success")
+			fmt.Printf("Error: %v\n", err)
 		}
-
-		fmt.Println("\n========== End Test ==========")
+		// Print all messages for debugging
+		for i, msg := range messages {
+			content := msg.Content
+			fmt.Printf("\n[%d] %s:\n%s\n", i, msg.Role, content)
+		}
 	}
 
-	fmt.Println("\n=== All tests completed ===")
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Error reading input:", err)
+	}
 }

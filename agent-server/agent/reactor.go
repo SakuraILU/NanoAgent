@@ -9,6 +9,7 @@ import (
 
 	"agent-server/config"
 	client "agent-server/client"
+	"agent-server/memory"
 	"agent-server/tool_box"
 )
 
@@ -32,7 +33,7 @@ type Reactor struct {
 	systemPrompt  string
 	userPrompt    string
 	maxEpoch      int
-	history       []client.ChatMessage
+	memory        *memory.ShortTermMemory
 }
 
 func NewReactor() *Reactor {
@@ -47,15 +48,16 @@ func NewReactor() *Reactor {
 		maxEpoch = 50 // fallback default
 	}
 
-	agent := Reactor{
+	reactor := Reactor{
 		llmClient:     llmClient,
 		searchWebTool: searchTool,
 		systemPrompt:  cfg.Reactor.SystemPrompt,
 		userPrompt:    cfg.Reactor.UserPrompt,
 		maxEpoch:      maxEpoch,
+		memory:        memory.NewShortTermMemory(),
 	}
 
-	return &agent
+	return &reactor
 }
 
 func (r *Reactor) Run(query string) ([]client.ChatMessage, error) {
@@ -64,12 +66,36 @@ func (r *Reactor) Run(query string) ([]client.ChatMessage, error) {
 	systemPrompt := strings.Replace(r.systemPrompt, "{current_date}", currentDate, -1)
 	userPrompt := strings.Replace(r.userPrompt, "{query}", query, -1)
 
-	// Create initial message list with system + user
+	// 1. 基于原始 query 召回相关历史记忆 (只召回一次)
+	recallTopK := config.GetConfig().Memory.RecallTopK
+	recalledItems, err := r.memory.Recall(query, recallTopK)
+	if err != nil {
+		return nil, fmt.Errorf("recall memory error: %w", err)
+	}
+
+	// 2. 构建记忆上下文，注入到 system prompt
+	memoryContext := r.buildMemoryContext(recalledItems)
+	if memoryContext != "" {
+		systemPrompt = systemPrompt + "\n\n## 相关历史记忆:\n" + memoryContext
+	}
+
+	// 3. Create initial message list with system + user
 	messages := []client.ChatMessage{
 		{Role: "system", Content: systemPrompt},
 		{Role: "user", Content: userPrompt},
 	}
 
+	// 4. 记录本轮对话的用户问题和系统提示到记忆 (importance = 1.0)
+	err = r.memory.Add(client.ChatMessage{Role: "system", Content: systemPrompt}, 1.0)
+	if err != nil {
+		fmt.Printf("Warning: failed to add system prompt to memory: %v\n", err)
+	}
+	err = r.memory.Add(client.ChatMessage{Role: "user", Content: query}, 1.0)
+	if err != nil {
+		fmt.Printf("Warning: failed to add user query to memory: %v\n", err)
+	}
+
+	// 5. 主循环：LLM → 工具调用 → ...
 	for epoch := 0; epoch < r.maxEpoch; epoch++ {
 		// Call LLM and get response
 		response, err := r.llmClient.InvokeMessage(messages)
@@ -89,11 +115,26 @@ func (r *Reactor) Run(query string) ([]client.ChatMessage, error) {
 			return messages, fmt.Errorf("epoch %d: parse response error: %w", epoch, err)
 		}
 
-		// If we have a final answer, return success
+		// If we have a final answer, save to memory and return
 		if resp.FinalAnswer != "" {
+			// 保存最终答案到记忆
+			importance := float32(resp.MemoryScore)
+			err = r.memory.Add(client.ChatMessage{Role: "assistant", Content: resp.FinalAnswer}, importance)
+			if err != nil {
+				fmt.Printf("Warning: failed to add final answer to memory: %v\n", err)
+			}
+			messages = append(messages, client.ChatMessage{
+				Role:    "assistant",
+				Content: resp.FinalAnswer,
+			})
 			return messages, nil
 		}
 
+		// 记录本轮对话的 LLM 回复到记忆 (importance = resp.MemoryScore)
+		err = r.memory.Add(client.ChatMessage{Role: "assistant", Content: response}, float32(resp.MemoryScore))
+		if err != nil {
+			fmt.Printf("Warning: failed to add LLM response to memory: %v\n", err)
+		}
 		// If we have an action, execute it
 		if resp.Action != nil {
 			toolResult, err := r.executeAction(resp.Action)
@@ -101,16 +142,35 @@ func (r *Reactor) Run(query string) ([]client.ChatMessage, error) {
 				return messages, fmt.Errorf("epoch %d: execute action error: %w", epoch, err)
 			}
 
+			// 工具结果使用 LLM 返回的 memory_score
+			importance := float32(resp.MemoryScore)
 			messages = append(messages, client.ChatMessage{
 				Role:    "tool",
 				Content: toolResult,
 			})
+			err = r.memory.Add(client.ChatMessage{Role: "tool", Content: toolResult}, importance)
+			if err != nil {
+				fmt.Printf("Warning: failed to add tool result to memory: %v\n", err)
+			}
 		} else {
 			return messages, fmt.Errorf("epoch %d: no action or final answer in response", epoch)
 		}
 	}
 
 	return messages, fmt.Errorf("reached max epochs (%d) without final answer", r.maxEpoch)
+}
+
+// buildMemoryContext 构建记忆上下文字符串
+func (r *Reactor) buildMemoryContext(items []memory.MemoryItem) string {
+	if len(items) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	for _, item := range items {
+		sb.WriteString(fmt.Sprintf("- [%s] %s\n", item.Role, item.Content))
+	}
+	return sb.String()
 }
 
 // parseResponse 解析 LLM 的 JSON 响应

@@ -8,10 +8,11 @@ import (
 )
 
 type Config struct {
-	Reactor      AgentConfig      `yaml:"reactor"`
-	LLM          LLMConfig        `yaml:"llm"`
-	Serper       SerperConfig     `yaml:"serper"`
-	QueryAnalyze QueryAnalyzeConfig `yaml:"query_analyze"`
+	Reactor      AgentConfig         `yaml:"reactor"`
+	LLM          LLMConfig           `yaml:"llm"`
+	Serper       SerperConfig        `yaml:"serper"`
+	QueryAnalyze QueryAnalyzeConfig  `yaml:"query_analyze"`
+	Memory       MemoryConfig        `yaml:"memory"`
 }
 
 type AgentConfig struct {
@@ -40,6 +41,10 @@ type SerperConfig struct {
 type QueryAnalyzeConfig struct {
 	Addr    string `yaml:"addr"`    // RPC 地址，如 localhost:9090
 	Timeout int    `yaml:"timeout"` // 超时时间(秒)
+}
+
+type MemoryConfig struct {
+	RecallTopK int `yaml:"recall_top_k"` // 召回数量
 }
 
 var (
@@ -86,6 +91,9 @@ func LoadConfig(path string) (*Config, error) {
 		}
 		if cfg.QueryAnalyze.Addr == "" {
 			cfg.QueryAnalyze.Addr = "localhost:9090"
+		}
+		if cfg.Memory.RecallTopK == 0 {
+			cfg.Memory.RecallTopK = 10
 		}
 
 		globalConfig = &cfg

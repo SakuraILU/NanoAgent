@@ -1,10 +1,9 @@
 # Go modules
-go.mod
-go.sum
+*.go.mod
+*.go.sum
 
 # Configuration files
-src/resource/*
-LLMCall.txt
+agent-server/resource/*
 
 # Binaries for programs and plugins
 *.exe
